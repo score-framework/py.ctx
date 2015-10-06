@@ -34,7 +34,7 @@ with open(os.path.join(here, 'README.rst')) as f:
 
 setup(
     name='score.ctx',
-    version='0.2.5',
+    version='0.2.6',
     description='Context handling for The SCORE Framework',
     long_description=README,
     author='strg.at',
@@ -42,6 +42,8 @@ setup(
     url='http://score-framework.org',
     keywords='score framework zope transaction context pyramid',
     packages=['score.ctx'],
+    namespace_packages=['score'],
+    zip_safe=False,
     license='LGPL',
     classifiers=[
         'Development Status :: 4 - Beta',
