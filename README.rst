@@ -20,10 +20,10 @@ This module provides a framework for defining the parameters of these
 environments, allowing other modules to provide valuable information relevant
 to the current interaction.
 
-The `narrative documentation of score.init`__ contains all the information you
+The `narrative documentation of score.ctx`__ contains all the information you
 need to put this module to good use.
 
-__ http://www.score-framework.org/doc/python/init/
+__ http://www.score-framework.org/doc/python/ctx/
 
 
 License
