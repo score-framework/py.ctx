@@ -31,6 +31,7 @@ pyramid_.
 .. _pyramid: http://docs.pylonsproject.org/projects/pyramid/en/latest/
 """
 import functools
+from pyramid.httpexceptions import HTTPRedirection
 from pyramid.tweens import EXCVIEW
 from types import MethodType
 
@@ -71,6 +72,10 @@ def tween_factory(handler, registry):
             ctx.response = response
             ctx.destroy()
             return response
+        except HTTPRedirection as e:
+            ctx.response = e
+            ctx.destroy()
+            raise
         except Exception as e:
             ctx.response = None
             ctx.destroy(e)
