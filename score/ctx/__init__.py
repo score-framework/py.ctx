@@ -37,10 +37,12 @@ def init(confdict={}):
     guidelines <module_initialization>`.
     """
     ctx_conf = ConfiguredCtxModule()
+
     def constructor(ctx):
         tx = ctx_conf.tx_manager.get()
         tx.join(_CtxDataManager(ctx_conf, ctx))
         return tx
+
     @ctx_conf.on_destroy
     def destructor(ctx, exception):
         tx = ctx_conf.tx_manager.get()
@@ -48,6 +50,7 @@ def init(confdict={}):
             tx.abort()
         else:
             tx.commit()
+
     ctx_conf.register('tx', constructor)
     return ctx_conf
 
@@ -103,6 +106,7 @@ class ConfiguredCtxModule(ConfiguredModule):
         self.registrations = {}
         self.tx_manager = TransactionManager()
         _conf = self
+
         class ConfiguredContext(Context):
             def __init__(self):
                 self._conf = _conf

@@ -41,9 +41,8 @@ setup(
     author_email='score@strg.at',
     url='http://score-framework.org',
     keywords='score framework zope transaction context pyramid',
-    packages=['score.ctx'],
+    packages=['score', 'score.ctx'],
     namespace_packages=['score'],
-    zip_safe=False,
     license='LGPL',
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -63,7 +62,4 @@ setup(
         'score.init >= 0.2.2',
         'transaction >= 1.4',
     ],
-    extras_require={
-        'pyramid': ['pyramid']
-    },
 )
