@@ -115,6 +115,9 @@ class ConfiguredCtxModule(ConfiguredModule):
         self._create_callbacks = []
         self._destroy_callbacks = []
 
+    def _finalize(self, score):
+        self.registrations['conf'] = _Reg(lambda ctx: score, None, True)
+
     def register(self, name, constructor, destructor=None, cached=True):
         """
         Registers a new :term:`member <context member>` on Context objects. This
