@@ -36,23 +36,23 @@ def init(confdict={}):
     Initializes this module acoording to :ref:`our module initialization
     guidelines <module_initialization>`.
     """
-    ctx_conf = ConfiguredCtxModule()
+    conf = ConfiguredCtxModule()
 
     def constructor(ctx):
-        tx = ctx_conf.tx_manager.get()
-        tx.join(_CtxDataManager(ctx_conf, ctx))
+        tx = conf.tx_manager.get()
+        tx.join(_CtxDataManager(conf, ctx))
         return tx
 
-    @ctx_conf.on_destroy
+    @conf.on_destroy
     def destructor(ctx, exception):
-        tx = ctx_conf.tx_manager.get()
+        tx = conf.tx_manager.get()
         if exception or tx.isDoomed():
             tx.abort()
         else:
             tx.commit()
 
-    ctx_conf.register('tx', constructor)
-    return ctx_conf
+    conf.register('tx', constructor)
+    return conf
 
 
 @implementer(IDataManager)
@@ -116,7 +116,7 @@ class ConfiguredCtxModule(ConfiguredModule):
         self._destroy_callbacks = []
 
     def _finalize(self, score):
-        self.registrations['conf'] = _Reg(lambda ctx: score, None, True)
+        self.registrations['score'] = _Reg(lambda ctx: score, None, True)
 
     def register(self, name, constructor, destructor=None, cached=True):
         """
