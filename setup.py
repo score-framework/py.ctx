@@ -59,7 +59,7 @@ setup(
         'Topic :: Software Development :: Libraries :: Application Frameworks',
     ],
     install_requires=[
-        'score.init >= 0.2.2',
+        'score.init >= 0.3',
         'transaction >= 1.4',
     ],
 )
