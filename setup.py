@@ -43,6 +43,7 @@ setup(
     keywords='score framework zope transaction context pyramid',
     packages=['score', 'score.ctx'],
     namespace_packages=['score'],
+    zip_safe=False,
     license='LGPL',
     classifiers=[
         'Development Status :: 4 - Beta',
