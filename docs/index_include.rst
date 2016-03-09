@@ -63,9 +63,3 @@ Configuration
 .. autoclass:: score.ctx.Context
 
     .. automethod:: score.ctx.Context.destroy
-
-Pyramid Integration
-===================
-
-.. autofunction:: score.ctx.pyramid.init
-
