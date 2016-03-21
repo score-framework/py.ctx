@@ -244,6 +244,8 @@ class Context:
 
     def __setattr__(self, attr, value):
         try:
+            # call registered contructor, if there is one, so the destructor
+            # gets called with this new value
             getattr(self, attr)
         except AttributeError:
             pass
@@ -251,14 +253,28 @@ class Context:
 
     def __delattr__(self, attr):
         if attr in self._conf.registrations:
-            self.log.debug('Deleting member %s' % attr)
-            destructor = self._conf.registrations[attr].destructor
-            if destructor:
-                self.log.debug('Calling destructor of %s' % attr)
-                if self._conf.registrations[attr].cached:
-                    destructor(self, self._constructed_attrs[attr], None)
-                else:
-                    destructor(self, None)
+            self.__delattr(attr, None)
+        else:
+            super().__delattr__(attr)
+
+    def __delattr(self, attr, exception):
+        """
+        Deletes a previously constructed *attr*. Its destructor will receive the
+        given *exception*.
+
+        Note: this function assumes that the *attr* is indeed a registered
+        context member. It will behave unexpectedly when called with an *attr*
+        that has no registration.
+        """
+        self.log.debug('Deleting member %s' % attr)
+        destructor = self._conf.registrations[attr].destructor
+        if destructor:
+            self.log.debug('Calling destructor of %s' % attr)
+            if self._conf.registrations[attr].cached:
+                destructor(self, self._constructed_attrs[attr], None)
+            else:
+                destructor(self, None)
+        del self._constructed_attrs[attr]
         try:
             del self.__dict__[attr]
         except KeyError:
@@ -280,17 +296,6 @@ class Context:
         self.log.debug('Destroying')
         self._active = False
         for attr in reversed(list(self._constructed_attrs.keys())):
-            destructor = self._conf.registrations[attr].destructor
-            if destructor:
-                self.log.debug('Calling destructor of %s' % attr)
-                if self._conf.registrations[attr].cached:
-                    destructor(self, self._constructed_attrs[attr], exception)
-                else:
-                    destructor(self, exception)
-            try:
-                del self.__dict__[attr]
-            except KeyError:
-                # destructor might have deleted self.attr already
-                pass
+            self.__delattr(attr, exception)
         for callback in self._conf._destroy_callbacks:
             callback(self, exception)
