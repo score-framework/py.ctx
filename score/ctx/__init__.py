@@ -39,17 +39,9 @@ def init(confdict={}):
     conf = ConfiguredCtxModule()
 
     def constructor(ctx):
-        tx = conf.tx_manager.get()
+        tx = ctx.tx_manager.get()
         tx.join(_CtxDataManager(conf, ctx))
         return tx
-
-    @conf.on_destroy
-    def destructor(ctx, exception):
-        tx = conf.tx_manager.get()
-        if exception or tx.isDoomed():
-            tx.abort()
-        else:
-            tx.commit()
 
     conf.register('tx', constructor)
     return conf
@@ -65,7 +57,7 @@ class _CtxDataManager:
 
     def __init__(self, conf, ctx):
         self.conf = conf
-        self.transaction_manager = conf.tx_manager
+        self.transaction_manager = ctx.tx_manager
         self.ctx = ctx
 
     def abort(self, transaction):
@@ -104,7 +96,6 @@ class ConfiguredCtxModule(ConfiguredModule):
     def __init__(self):
         super().__init__(__package__)
         self.registrations = {}
-        self.tx_manager = TransactionManager()
         _conf = self
 
         class ConfiguredContext(Context):
@@ -211,6 +202,7 @@ class Context:
         self.log.debug('Initializing')
         self._constructed_attrs = OrderedDict()
         self._active = True
+        self.tx_manager = TransactionManager()
         for callback in self._conf._create_callbacks:
             callback(self)
 
@@ -299,3 +291,8 @@ class Context:
             self.__delattr(attr, exception)
         for callback in self._conf._destroy_callbacks:
             callback(self, exception)
+        tx = self.tx_manager.get()
+        if exception or tx.isDoomed():
+            tx.abort()
+        else:
+            tx.commit()
