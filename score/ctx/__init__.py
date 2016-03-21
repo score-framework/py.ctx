@@ -245,7 +245,8 @@ class Context:
 
     def __delattr__(self, attr):
         if attr in self._conf.registrations:
-            self.__delattr(attr, None)
+            if attr in self._constructed_attrs:
+                self.__delattr(attr, None)
         else:
             super().__delattr__(attr)
 
