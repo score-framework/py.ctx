@@ -247,8 +247,10 @@ class Context:
         if attr in self._conf.registrations:
             if attr in self._constructed_attrs:
                 self.__delattr(attr, None)
+            if attr in self.__dict__:
+                del self.__dict__[attr]
         else:
-            super().__delattr__(attr)
+            del self.__dict__[attr]
 
     def __delattr(self, attr, exception):
         """
