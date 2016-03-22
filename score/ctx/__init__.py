@@ -40,7 +40,7 @@ def init(confdict={}):
 
     def constructor(ctx):
         tx = ctx.tx_manager.get()
-        tx.join(_CtxDataManager(conf, ctx))
+        tx.join(_CtxDataManager(ctx))
         return tx
 
     conf.register('tx', constructor)
@@ -55,8 +55,7 @@ class _CtxDataManager:
     committed or aborted.
     """
 
-    def __init__(self, conf, ctx):
-        self.conf = conf
+    def __init__(self, ctx):
         self.transaction_manager = ctx.tx_manager
         self.ctx = ctx
 
