@@ -247,7 +247,7 @@ class Context:
         if attr in self._conf.registrations:
             if attr in self._constructed_attrs:
                 self.__delattr(attr, None)
-            if attr in self.__dict__:
+            elif attr in self.__dict__:
                 del self.__dict__[attr]
         else:
             del self.__dict__[attr]
@@ -261,15 +261,16 @@ class Context:
         context member. It will behave unexpectedly when called with an *attr*
         that has no registration.
         """
+        constructor_value = self._constructed_attrs[attr]
+        del self._constructed_attrs[attr]
         self.log.debug('Deleting member %s' % attr)
         destructor = self._conf.registrations[attr].destructor
         if destructor:
             self.log.debug('Calling destructor of %s' % attr)
             if self._conf.registrations[attr].cached:
-                destructor(self, self._constructed_attrs[attr], None)
+                destructor(self, constructor_value, None)
             else:
                 destructor(self, None)
-        del self._constructed_attrs[attr]
         try:
             del self.__dict__[attr]
         except KeyError:
