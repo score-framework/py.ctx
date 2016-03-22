@@ -219,7 +219,7 @@ class Context:
     def __hasattr__(self, attr):
         if self._active:
             return attr in self._conf.registrations
-        return super().__hasattr__(attr)
+        return attr in self.__dict__
 
     def __getattr__(self, attr):
         if '_active' in self.__dict__ and '_conf' in self.__dict__ and \
