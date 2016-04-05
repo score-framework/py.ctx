@@ -16,18 +16,18 @@ environments, allowing other modules to provide valuable information relevant
 to the current interaction. It basically implements the `Context Object
 Pattern`_.
 
-A :term:`context`, as defined by this module, can be regarded as a smaller
-sibling of the HTTP session: It contains all required data to serve an HTTP
-request, for example.
+A *context*, as defined by this module, can be regarded as a smaller sibling of
+the HTTP session: It contains all required data to serve an HTTP request, for
+example.
 
 A context is not tied to interaction through HTTP, though. When a user opens a
-shell to the application, for example, the application should create a new
-context, where it could store the id of the authenticated user.
+shell to the application, the application should also create a new context,
+where it could store the id of the authenticated user.
 
 .. _Context Object Pattern: http://c2.com/cgi/wiki?ContextObject
 
 
-.. _ctx_configuration:
+.. _ctx_quickstart:
 
 Quickstart
 ==========
