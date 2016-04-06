@@ -67,6 +67,8 @@ caching during registration:
 8
 
 
+.. _ctx_configuration:
+
 Configuration
 =============
 
@@ -77,8 +79,11 @@ This module adheres to our :ref:`module initialization guiedlines
 >>> import score.ctx
 >>> ctx_conf = score.ctx.init()
 
-Features
-========
+
+.. _ctx_details:
+
+Details
+=======
 
 
 .. _ctx_transactions:
