@@ -93,7 +93,8 @@ class ConfiguredCtxModule(ConfiguredModule):
     """
 
     def __init__(self):
-        super().__init__(__package__)
+        import score.ctx
+        super().__init__(score.ctx)
         self.registrations = {}
         _conf = self
 
