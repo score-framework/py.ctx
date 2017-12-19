@@ -172,9 +172,9 @@ class ConfiguredCtxModule(ConfiguredModule):
         Registers provided *callable* to be called whenever a :class:`.Context`
         object is destroyed. The callback will receive two arguments:
 
-          - The Context object, which is about to be destroyed, and
-          - an optional exception, which was thrown before the Context was
-            gracefully destroyed.
+        - The Context object, which is about to be destroyed, and
+        - an optional exception, which was thrown before the Context was
+          gracefully destroyed.
         """
         self._destroy_callbacks.append(callable)
 
