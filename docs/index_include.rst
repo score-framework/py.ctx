@@ -1,6 +1,6 @@
 .. module:: score.ctx
-.. role:: faint
 .. role:: confkey
+.. role:: confdefault
 
 *********
 score.ctx
@@ -156,9 +156,9 @@ API
 Configuration
 -------------
 
-.. autofunction:: score.ctx.init
+.. autofunction:: init
 
-.. autoclass:: score.ctx.ConfiguredCtxModule
+.. autoclass:: ConfiguredCtxModule
 
     .. attribute:: Context
 
@@ -166,12 +166,12 @@ Configuration
 
         >>> ctx = ctx_conf.Context()
 
-    .. automethod:: score.ctx.ConfiguredCtxModule.register
+    .. automethod:: register
 
-    .. automethod:: score.ctx.ConfiguredCtxModule.on_create
+    .. automethod:: on_create
 
-    .. automethod:: score.ctx.ConfiguredCtxModule.on_destroy
+    .. automethod:: on_destroy
 
-.. autoclass:: score.ctx.Context
+.. autoclass:: Context
 
-    .. automethod:: score.ctx.Context.destroy
+    .. automethod:: destroy
