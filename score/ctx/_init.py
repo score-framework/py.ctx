@@ -81,7 +81,8 @@ class _CtxDataManager:
         return 'score.ctx(%d)' % id(self)
 
 
-_Reg = namedtuple('ctx_Registration', 'constructor, destructor, cached')
+CtxMemberRegistration = namedtuple(
+    'CtxMemberRegistration', 'constructor, destructor, cached')
 
 
 class ConfiguredCtxModule(ConfiguredModule):
@@ -107,7 +108,8 @@ class ConfiguredCtxModule(ConfiguredModule):
         self._destroy_callbacks = []
 
     def _finalize(self, score):
-        self.registrations['score'] = _Reg(lambda ctx: score, None, True)
+        self.registrations['score'] = CtxMemberRegistration(
+            lambda ctx: score, None, True)
 
     def register(self, name, constructor, destructor=None, cached=True):
         """
@@ -157,7 +159,8 @@ class ConfiguredCtxModule(ConfiguredModule):
         """
         if name == 'destroy' or not name or name[0] == '_':
             raise ValueError('Invalid name "%s"' % name)
-        self.registrations[name] = _Reg(constructor, destructor, cached)
+        self.registrations[name] = CtxMemberRegistration(
+            constructor, destructor, cached)
 
     def on_create(self, callable):
         """
