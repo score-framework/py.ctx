@@ -292,7 +292,11 @@ class Context:
         """
         if not self._active:
             return
-        self.log.debug('Destroying')
+        if exception:
+            self.log.debug('Destroying, %s: %s',
+                           type(exception).__name__, exception)
+        else:
+            self.log.debug('Destroying')
         self._active = False
         for attr in reversed(list(self._constructed_attrs.keys())):
             self.__delattr(attr, exception)
