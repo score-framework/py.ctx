@@ -297,13 +297,13 @@ class Context:
                            type(exception).__name__, exception)
         else:
             self.log.debug('Destroying')
-        self._active = False
-        for attr in reversed(list(self._constructed_attrs.keys())):
-            self.__delattr(attr, exception)
-        for callback in self._conf._destroy_callbacks:
-            callback(self, exception)
         tx = self.tx_manager.get()
         if exception or tx.isDoomed():
             tx.abort()
         else:
             tx.commit()
+        self._active = False
+        for attr in reversed(list(self._constructed_attrs.keys())):
+            self.__delattr(attr, exception)
+        for callback in self._conf._destroy_callbacks:
+            callback(self, exception)
