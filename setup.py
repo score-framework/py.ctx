@@ -34,7 +34,7 @@ with open(os.path.join(here, 'README.rst')) as f:
 
 setup(
     name='score.ctx',
-    version='0.4.7',
+    version='0.5.0',
     description='Context handling for The SCORE Framework',
     long_description=README,
     author='strg.at',
