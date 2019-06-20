@@ -271,9 +271,9 @@ class Context:
         if destructor:
             self.log.debug('Calling destructor of %s' % attr)
             if self._conf.registrations[attr].cached:
-                destructor(self, constructor_value, None)
+                destructor(self, constructor_value, exception)
             else:
-                destructor(self, None)
+                destructor(self, exception)
         try:
             del self.__dict__[attr]
         except KeyError:
