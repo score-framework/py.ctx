@@ -1,11 +1,12 @@
 # Copyright © 2015-2018 STRG.AT GmbH, Vienna, Austria
+# Copyright © 2019 Necdet Can Ateşman, Vienna, Austria
 #
 # This file is part of the The SCORE Framework.
 #
 # The SCORE Framework and all its parts are free software: you can redistribute
 # them and/or modify them under the terms of the GNU Lesser General Public
-# License version 3 as published by the Free Software Foundation which is in the
-# file named COPYING.LESSER.txt.
+# License version 3 as published by the Free Software Foundation which is in
+# the file named COPYING.LESSER.txt.
 #
 # The SCORE Framework and all its parts are distributed without any WARRANTY;
 # without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
@@ -21,8 +22,8 @@
 # concerning this License-Agreement including the issue of its valid conclusion
 # and its pre- and post-contractual effects are exclusively decided by the
 # competent court, in whose district STRG.AT GmbH has its registered seat, at
-# the discretion of STRG.AT GmbH also the competent court, in whose district the
-# Licensee has his registered seat, an establishment or assets.
+# the discretion of STRG.AT GmbH also the competent court, in whose district
+# the Licensee has his registered seat, an establishment or assets.
 
 from collections import namedtuple, OrderedDict
 from score.init import ConfiguredModule
@@ -113,8 +114,8 @@ class ConfiguredCtxModule(ConfiguredModule):
 
     def register(self, name, constructor, destructor=None, cached=True):
         """
-        Registers a new :term:`member <context member>` on Context objects. This
-        is the function to use when populating future Context objects. An
+        Registers a new :term:`member <context member>` on Context objects.
+        This is the function to use when populating future Context objects. An
         example for fetching the current user from the session:
 
         >>> def constructor(ctx):
@@ -137,15 +138,17 @@ class ConfiguredCtxModule(ConfiguredModule):
 
         - The Context object,
         - whatever the constructor had returned, and
-        - an exception, that was caught during the lifetime of the context. This
-          last value is `None`, if the Context was destroyed without exception.
+        - an exception, that was caught during the lifetime of the context.
+          This last value is `None`, if the Context was destroyed without
+          exception.
 
         The value returned by the constructor will be *cached* in the Context
         object by default, i.e. the constructor will be called at most once for
         each Context. It is possible to add a context member, which will be
         called every time it is accessed by passing a `False` value as the
         *cached* parameter. Note that the destructor will only receive two
-        parameters in this case (the context object and the optional exception).
+        parameters in this case (the context object and the optional
+        exception).
 
         >>> from datetime import datetime
         >>> def constructor(ctx):
@@ -185,13 +188,14 @@ class ConfiguredCtxModule(ConfiguredModule):
 class Context:
     """
     Base class for Contexts of a ConfiguredCtxModule. Do not use this class
-    directly, use the :attr:`Context <.ConfiguredCtxModule.Context>` member of a
-    ConfiguredCtxModule instead.
+    directly, use the :attr:`Context <.ConfiguredCtxModule.Context>` member of
+    a ConfiguredCtxModule instead.
 
     Every Context object needs to be destroyed manually by calling its
     :meth:`.destroy` method. Although this method will be called in the
-    destructor of this class, that might already be too late. This is the reason
-    why the preferred way of using this class is within a `with` statement:
+    destructor of this class, that might already be too late. This is the
+    reason why the preferred way of using this class is within a `with`
+    statement:
 
     >>> with ctx_conf.Context() as ctx:
     ...     ctx.logout_user()
@@ -257,8 +261,8 @@ class Context:
 
     def __delattr(self, attr, exception):
         """
-        Deletes a previously constructed *attr*. Its destructor will receive the
-        given *exception*.
+        Deletes a previously constructed *attr*. Its destructor will receive
+        the given *exception*.
 
         Note: this function assumes that the *attr* is indeed a registered
         context member. It will behave unexpectedly when called with an *attr*
@@ -287,8 +291,8 @@ class Context:
         After calling this function, this object will lose all its magic and
         behave like an empty class.
 
-        The optional *exception*, that is the cause of this method call, will be
-        passed to the destructors of every :term:`context member`.
+        The optional *exception*, that is the cause of this method call, will
+        be passed to the destructors of every :term:`context member`.
         """
         if not self._active:
             return
