@@ -1,4 +1,3 @@
-# Copyright © 2015-2018 STRG.AT GmbH, Vienna, Austria
 # Copyright © 2019 Necdet Can Ateşman, Vienna, Austria
 #
 # This file is part of the The SCORE Framework.
@@ -25,8 +24,18 @@
 # the discretion of STRG.AT GmbH also the competent court, in whose district
 # the # Licensee has his registered seat, an establishment or assets.
 
-from ._init import init, ConfiguredCtxModule, Context
-from .cli import init_cli_ctx
+import functools
+
+from score.cli import init_score
 
 
-__all__ = ('init', 'ConfiguredCtxModule', 'Context', 'init_cli_ctx')
+def init_cli_ctx(command):
+    """
+    Decorator for click commands that provides a Context object.
+    """
+    @functools.wraps(command)
+    @init_score
+    def wrapped(score, *args, **kwargs):
+        with score.ctx.Context() as ctx:
+            return command(ctx, *args, **kwargs)
+    return wrapped
