@@ -97,20 +97,17 @@ class ConfiguredCtxModule(ConfiguredModule):
     def __init__(self):
         import score.ctx
         super().__init__(score.ctx)
-        self.registrations = {}
-        _conf = self
-
-        class ConfiguredContext(Context):
-            def __init__(self):
-                self._conf = _conf
-                super().__init__()
-        self.Context = ConfiguredContext
+        self.registrations = OrderedDict()
         self._create_callbacks = []
         self._destroy_callbacks = []
 
     def _finalize(self, score):
         self.registrations['score'] = CtxMemberRegistration(
             lambda ctx: score, None, True)
+        members = {'_conf': self}
+        for name, registration in self.registrations.items():
+            members[name] = _create_member(name, registration)
+        self.Context = type('ConfiguredContext', (Context,), members)
 
     def register(self, name, constructor, destructor=None, cached=True):
         """
@@ -205,16 +202,14 @@ class Context:
     def __init__(self):
         if not hasattr(self, '_conf'):
             raise Exception('Unconfigured Context')
-        self.log = self._conf.log
-        self.log.debug('Initializing')
-        self._constructed_attrs = OrderedDict()
-        self._active = True
+        self._meta = ContextMetadata(self)
+        self._conf.log.debug('Initializing')
         self.tx_manager = TransactionManager()
         for callback in self._conf._create_callbacks:
             callback(self)
 
     def __del__(self):
-        if self._active:
+        if self._meta.active:
             self.destroy()
 
     def __enter__(self):
@@ -222,67 +217,6 @@ class Context:
 
     def __exit__(self, type, value, traceback):
         self.destroy(value)
-
-    def __hasattr__(self, attr):
-        if self._active:
-            return attr in self._conf.registrations
-        return attr in self.__dict__
-
-    def __getattr__(self, attr):
-        if '_active' in self.__dict__ and '_conf' in self.__dict__ and \
-                self._active and attr in self._conf.registrations:
-            value = self._conf.registrations[attr].constructor(self)
-            if self._conf.registrations[attr].cached:
-                self._constructed_attrs[attr] = value
-                self.__dict__[attr] = value
-            else:
-                self._constructed_attrs[attr] = None
-            self.log.debug('Creating member %s' % attr)
-            return value
-        raise AttributeError(attr)
-
-    def __setattr__(self, attr, value):
-        try:
-            # call registered contructor, if there is one, so the destructor
-            # gets called with this new value
-            getattr(self, attr)
-        except AttributeError:
-            pass
-        self.__dict__[attr] = value
-
-    def __delattr__(self, attr):
-        if attr in self._conf.registrations:
-            if attr in self._constructed_attrs:
-                self.__delattr(attr, None)
-            elif attr in self.__dict__:
-                del self.__dict__[attr]
-        else:
-            del self.__dict__[attr]
-
-    def __delattr(self, attr, exception):
-        """
-        Deletes a previously constructed *attr*. Its destructor will receive
-        the given *exception*.
-
-        Note: this function assumes that the *attr* is indeed a registered
-        context member. It will behave unexpectedly when called with an *attr*
-        that has no registration.
-        """
-        constructor_value = self._constructed_attrs[attr]
-        del self._constructed_attrs[attr]
-        self.log.debug('Deleting member %s' % attr)
-        destructor = self._conf.registrations[attr].destructor
-        if destructor:
-            self.log.debug('Calling destructor of %s' % attr)
-            if self._conf.registrations[attr].cached:
-                destructor(self, constructor_value, exception)
-            else:
-                destructor(self, exception)
-        try:
-            del self.__dict__[attr]
-        except KeyError:
-            # destructor might have deleted self.attr already
-            pass
 
     def destroy(self, exception=None):
         """
@@ -294,20 +228,84 @@ class Context:
         The optional *exception*, that is the cause of this method call, will
         be passed to the destructors of every :term:`context member`.
         """
-        if not self._active:
+        if not self._meta.active:
             return
         if exception:
-            self.log.debug('Destroying, %s: %s',
-                           type(exception).__name__, exception)
+            self._conf.log.debug('Destroying, %s: %s',
+                                 type(exception).__name__, exception)
         else:
-            self.log.debug('Destroying')
+            self._conf.log.debug('Destroying')
         tx = self.tx_manager.get()
         if exception or tx.isDoomed():
             tx.abort()
         else:
             tx.commit()
-        self._active = False
-        for attr in reversed(list(self._constructed_attrs.keys())):
-            self.__delattr(attr, exception)
+        self._meta.active = False
+        for attr in reversed(list(self._meta.constructed_members.keys())):
+            constructor_value = self._meta.constructed_members.pop(attr)
+            self._conf.log.debug('Deleting member %s' % attr)
+            registration = self._conf.registrations[attr]
+            destructor = registration.destructor
+            if destructor:
+                self._conf.log.debug('Calling destructor of %s' % attr)
+                if registration.cached:
+                    destructor(self, constructor_value, exception)
+                else:
+                    destructor(self, exception)
         for callback in self._conf._destroy_callbacks:
             callback(self, exception)
+
+
+class ContextMetadata:
+
+    _registered_members = None
+
+    def __init__(self, ctx):
+        self.ctx = ctx
+        self.active = True
+        self.constructed_members = {}
+        self.assigned_members = {}
+
+    @property
+    def registered_members(self):
+        if self._registered_members is None:
+            self._registered_members = list(self.registrations.keys())
+        return self._registered_members
+
+    def member_exists(self, name):
+        return name in self.registered_members
+
+    def member_constructed(self, name):
+        return name in self.constructed_members
+
+
+def _create_member(name, registration):
+
+    def getter(ctx):
+        if name in ctx._meta.assigned_members[name]:
+            return ctx._meta.assigned_members[name]
+        if registration.cached and name in ctx._meta.constructed_members:
+            value = ctx._meta.constructed_members[name]
+            ctx._meta.assigned_members[name] = value
+            return value
+        value = registration.constructor()
+        if registration.cached:
+            ctx._meta.constructed_members[name] = value
+        else:
+            ctx._meta.constructed_members[name] = None
+        ctx._meta.assigned_members[name] = value
+        return value
+
+    def setter(ctx, value):
+        if name not in ctx._meta.constructed_members:
+            initial_value = registration.constructor()
+            ctx._meta.constructed_members[name] = initial_value
+        ctx._meta.assigned_members[name] = value
+
+    def deller(ctx):
+        ctx._meta.assigned_members.pop(name)
+
+    getter.__name__ = 'get_ctx_' + name
+    setter.__name__ = 'set_ctx_' + name
+    deller.__name__ = 'del_ctx_' + name
+    return property(getter, setter, deller)
