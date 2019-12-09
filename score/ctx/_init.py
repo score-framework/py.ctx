@@ -25,7 +25,7 @@
 # the discretion of STRG.AT GmbH also the competent court, in whose district
 # the Licensee has his registered seat, an establishment or assets.
 
-from collections import namedtuple, OrderedDict
+from collections import OrderedDict
 from score.init import ConfiguredModule
 from transaction import TransactionManager
 from transaction.interfaces import IDataManager
@@ -82,8 +82,13 @@ class _CtxDataManager:
         return 'score.ctx(%d)' % id(self)
 
 
-CtxMemberRegistration = namedtuple(
-    'CtxMemberRegistration', 'constructor, destructor, cached')
+class CtxMemberRegistration:
+
+    def __init__(self, name, constructor, destructor, cached):
+        self.name = name
+        self.constructor = constructor
+        self.destructor = destructor
+        self.cached = cached
 
 
 class ConfiguredCtxModule(ConfiguredModule):
@@ -103,7 +108,7 @@ class ConfiguredCtxModule(ConfiguredModule):
 
     def _finalize(self, score):
         self.registrations['score'] = CtxMemberRegistration(
-            lambda ctx: score, None, True)
+            'score', lambda ctx: score, None)
         members = {'_conf': self}
         for name, registration in self.registrations.items():
             members[name] = _create_member(name, registration)
@@ -160,7 +165,7 @@ class ConfiguredCtxModule(ConfiguredModule):
         if name == 'destroy' or not name or name[0] == '_':
             raise ValueError('Invalid name "%s"' % name)
         self.registrations[name] = CtxMemberRegistration(
-            constructor, destructor, cached)
+            name, constructor, destructor, cached)
 
     def on_create(self, callable):
         """
