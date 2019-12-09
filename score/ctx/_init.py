@@ -84,11 +84,10 @@ class _CtxDataManager:
 
 class CtxMemberRegistration:
 
-    def __init__(self, name, constructor, destructor, cached):
+    def __init__(self, name, constructor, destructor):
         self.name = name
         self.constructor = constructor
         self.destructor = destructor
-        self.cached = cached
 
 
 class ConfiguredCtxModule(ConfiguredModule):
@@ -114,7 +113,7 @@ class ConfiguredCtxModule(ConfiguredModule):
             members[name] = _create_member(name, registration)
         self.Context = type('ConfiguredContext', (Context,), members)
 
-    def register(self, name, constructor, destructor=None, cached=True):
+    def register(self, name, constructor, destructor=None):
         """
         Registers a new :term:`member <context member>` on Context objects.
         This is the function to use when populating future Context objects. An
@@ -143,35 +142,17 @@ class ConfiguredCtxModule(ConfiguredModule):
         - an exception, that was caught during the lifetime of the context.
           This last value is `None`, if the Context was destroyed without
           exception.
-
-        The value returned by the constructor will be *cached* in the Context
-        object by default, i.e. the constructor will be called at most once for
-        each Context. It is possible to add a context member, which will be
-        called every time it is accessed by passing a `False` value as the
-        *cached* parameter. Note that the destructor will only receive two
-        parameters in this case (the context object and the optional
-        exception).
-
-        >>> from datetime import datetime
-        >>> def constructor(ctx):
-        ...     return datetime.now()
-        ...
-        >>> def destructor(ctx, exception):
-        ...     pass
-        ...
-        >>> ctx_conf.register('now', constructor, destructor, cached=False)
-
         """
         if name == 'destroy' or not name or name[0] == '_':
             raise ValueError('Invalid name "%s"' % name)
         self.registrations[name] = CtxMemberRegistration(
-            name, constructor, destructor, cached)
+            name, constructor, destructor)
 
     def on_create(self, callable):
         """
         Registers provided *callable* to be called whenever a new
-        :class:`.Context` object is created. The callback will receive the newly
-        created Context object as its sole argument.
+        :class:`.Context` object is created. The callback will receive the
+        newly created Context object as its sole argument.
         """
         self._create_callbacks.append(callable)
 
@@ -249,14 +230,10 @@ class Context:
         for attr in reversed(list(self._meta.constructed_members.keys())):
             constructor_value = self._meta.constructed_members.pop(attr)
             self._conf.log.debug('Deleting member %s' % attr)
-            registration = self._conf.registrations[attr]
-            destructor = registration.destructor
+            destructor = self._conf.registrations[attr].destructor
             if destructor:
                 self._conf.log.debug('Calling destructor of %s' % attr)
-                if registration.cached:
-                    destructor(self, constructor_value, exception)
-                else:
-                    destructor(self, exception)
+                destructor(self, constructor_value, exception)
         for callback in self._conf._destroy_callbacks:
             callback(self, exception)
 
@@ -289,15 +266,12 @@ def _create_member(name, registration):
     def getter(ctx):
         if name in ctx._meta.assigned_members[name]:
             return ctx._meta.assigned_members[name]
-        if registration.cached and name in ctx._meta.constructed_members:
+        if name in ctx._meta.constructed_members:
             value = ctx._meta.constructed_members[name]
             ctx._meta.assigned_members[name] = value
             return value
         value = registration.constructor()
-        if registration.cached:
-            ctx._meta.constructed_members[name] = value
-        else:
-            ctx._meta.constructed_members[name] = None
+        ctx._meta.constructed_members[name] = value
         ctx._meta.assigned_members[name] = value
         return value
 

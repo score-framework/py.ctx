@@ -38,33 +38,48 @@ Once the module is initialized, you can register :term:`context members
 >>> import random
 >>> import score.ctx
 >>> ctx_conf = score.ctx.init()
->>> ctx_conf.register('randnum', lambda: random.randint(0, 10))
+>>> fruits = [
+...     'loganberries',
+...     'passion fruit',
+...     'orange',
+...     'apple',
+...     'grapefruit',
+...     'pomegranate',
+...     'greengage',
+...     'grapes',
+...     'lemon',
+...     'plum',
+...     'mango',
+...     'cherry',
+...     'banana']
+>>> ctx_conf.register('fruit', lambda ctx: random.choice(fruits))
+>>> ctx_conf._finalize()
 
 
 These registered context members are available under the given name in every
 :class:`Context`:
 
 >>> ctx = ctx_conf.Context()
->>> ctx.randnum
-4
->>> ctx.randnum
-4
->>> ctx.randnum
-4
+>>> ctx.fruit
+'banana'
+>>> ctx.fruit
+'banana'
+>>> ctx.fruit
+'banana'
 
-As you can see, the value of the context member is cached by default. If you
-want your value to be evaluated anew each time, you will have to disable
-caching during registration:
+As you can see, the value of the context member is cached. If you want your
+value to be dynamic, you can register a function instead:
 
->>> import random
->>> import score.ctx
->>> ctx_conf = score.ctx.init()
->>> ctx_conf.register('randnum', lambda: random.randint(0, 10), cached=False)
+>>> def random_fruit():
+...     return random.coice(fruits)
+... 
+>>> ctx_conf.register('dynamic_fruit', lambda ctx: random_fruit)
+>>> ctx_conf._finalize()
 >>> ctx = ctx_conf.Context()
->>> ctx.randnum
-2
->>> ctx.randnum
-8
+>>> ctx.dynamic_fruit()
+'pomegranate'
+>>> ctx.dynamic_fruit()
+'apple'
 
 
 .. _ctx_configuration:
@@ -131,23 +146,6 @@ As you can see, the destructor receives three arguments:
 - the exception, that terminated the context pre-maturely (or `None`, if the
   context terminated successfully).
 
-The parameter list changes, though, if the context member is not cached: the
-second parameter does not really exist in that case.
-
-.. code-block:: python
-
-    def construct(ctx):
-        if not hasattr(ctx, '_num_calls'):
-            ctx._num_calls = 0
-        ctx._num_calls += 1
-
-    def destruct(ctx, exception):
-        count = ctx._num_calls if hasattr(ctx, '_num_calls') else 0
-        logger.debug('Counter called %d times', count)
-
-    ctx_conf.register('counter', construct, destruct, cached=False)
-
-
 .. _ctx_api:
 
 API
@@ -165,6 +163,8 @@ Configuration
         A configured :class:`.Context` class, which can be instantiated directly:
 
         >>> ctx = ctx_conf.Context()
+
+        Note that this member is available only after the module was finalized.
 
     .. automethod:: register
 
