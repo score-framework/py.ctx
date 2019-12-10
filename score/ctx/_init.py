@@ -102,8 +102,7 @@ class ConfiguredCtxModule(ConfiguredModule):
     """
 
     def __init__(self):
-        import score.ctx
-        super().__init__(score.ctx)
+        super().__init__('score.ctx')
         self.registrations = OrderedDict()
         self._create_callbacks = []
         self._destroy_callbacks = []
