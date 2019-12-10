@@ -29,8 +29,6 @@ from collections import OrderedDict
 from weakref import WeakKeyDictionary
 
 from transaction import TransactionManager
-from transaction.interfaces import IDataManager
-from zope.interface import implementer
 
 from score.init import ConfiguredModule
 
@@ -40,49 +38,7 @@ def init(confdict={}):
     Initializes this module acoording to :ref:`our module initialization
     guidelines <module_initialization>`.
     """
-    conf = ConfiguredCtxModule()
-
-    def constructor(ctx):
-        tx = ctx.tx_manager.get()
-        tx.join(_CtxDataManager(ctx))
-        return tx
-
-    conf.register('tx', constructor)
-    return conf
-
-
-@implementer(IDataManager)
-class _CtxDataManager:
-    """
-    An :interface:`IDataManager <transaction.interfaces.IDataManager>`, which
-    will remove the `tx' :term:`context member` once the transaction is
-    committed or aborted.
-    """
-
-    def __init__(self, ctx):
-        self.transaction_manager = ctx.tx_manager
-        self.ctx = ctx
-
-    def abort(self, transaction):
-        del self.ctx.tx
-
-    def tpc_begin(self, transaction):
-        pass
-
-    def commit(self, transaction):
-        pass
-
-    def tpc_vote(self, transaction):
-        pass
-
-    def tpc_finish(self, transaction):
-        del self.ctx.tx
-
-    def tpc_abort(self, transaction):
-        del self.ctx.tx
-
-    def sortKey(self):
-        return 'score.ctx(%d)' % id(self)
+    return ConfiguredCtxModule()
 
 
 class CtxMemberRegistration:
@@ -245,7 +201,7 @@ class Context:
         if not hasattr(self, '_conf'):
             raise Exception('Unconfigured Context')
         self._conf.log.debug('Initializing')
-        self.tx_manager = TransactionManager()
+        self.tx = TransactionManager()
         for callback in self._conf._create_callbacks:
             callback(self)
 
@@ -278,7 +234,7 @@ class Context:
                                  type(exception).__name__, exception)
         else:
             self._conf.log.debug('Destroying')
-        tx = self.tx_manager.get()
+        tx = self.tx.get()
         if exception or tx.isDoomed():
             tx.abort()
         else:
