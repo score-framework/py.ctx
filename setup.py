@@ -41,7 +41,7 @@ setup(
     author='strg.at',
     author_email='score@strg.at',
     url='http://score-framework.org',
-    keywords='score framework zope transaction context pyramid',
+    keywords='score framework transaction context',
     packages=['score', 'score.ctx'],
     namespace_packages=['score'],
     zip_safe=False,
@@ -58,6 +58,8 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Topic :: Software Development :: Libraries :: Application Frameworks',
     ],
     install_requires=[
