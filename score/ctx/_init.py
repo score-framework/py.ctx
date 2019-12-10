@@ -62,6 +62,13 @@ class CtxMemberRegistration:
         self.destructor = destructor
 
 
+class DeadContextException(Exception):
+
+    def __init__(self, ctx):
+        self.ctx = ctx
+        super().__init__('Context cannot be user: it was destroyed')
+
+
 class ConfiguredCtxModule(ConfiguredModule):
     """
     This module's :class:`configuration class
@@ -167,7 +174,9 @@ class ConfiguredCtxModule(ConfiguredModule):
     def _create_member(self, name, registration):
 
         def getter(ctx):
-            meta = self.get_meta(ctx)
+            meta = self.get_meta(ctx, autocreate=False)
+            if not meta.active:
+                raise DeadContextException(ctx)
             if name not in meta.constructed_members:
                 meta.constructed_members[name] = registration.constructor(ctx)
             return meta.constructed_members[name]
@@ -177,6 +186,8 @@ class ConfiguredCtxModule(ConfiguredModule):
         if registration.setter:
             def setter(ctx, value):
                 meta = self.get_meta(ctx)
+                if not meta.active:
+                    raise DeadContextException(ctx)
                 if name not in meta.constructed_members:
                     previous_value = getter(ctx)
                 else:
@@ -188,6 +199,8 @@ class ConfiguredCtxModule(ConfiguredModule):
 
         def deller(ctx):
             meta = self.get_meta(ctx)
+            if not meta.active:
+                raise DeadContextException(ctx)
             if not meta.member_constructed(name):
                 return
             self.log.debug('Deleting member %s' % name)
@@ -211,8 +224,8 @@ class Context:
     Every Context object needs to be destroyed manually by calling its
     :meth:`.destroy` method. Although this method will be called in the
     destructor of this class, that might already be too late. This is the
-    reason why the preferred way of using this class is within a `with`
-    statement:
+    reason why the preferred way of using this class is as a
+    :term:`context manager <python:context manager>`:
 
     >>> with ctx_conf.Context() as ctx:
     ...     ctx.logout_user()
@@ -235,6 +248,9 @@ class Context:
             self.destroy()
 
     def __enter__(self):
+        meta = self._conf.get_meta(self)
+        if not meta.active:
+            raise DeadContextException(self)
         return self
 
     def __exit__(self, type, value, traceback):
