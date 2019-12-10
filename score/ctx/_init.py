@@ -163,6 +163,8 @@ class ConfiguredCtxModule(ConfiguredModule):
         """
         if name == 'destroy' or not name or name[0] == '_':
             raise ValueError('Invalid name "%s"' % name)
+        if name in self.registrations:
+            raise ValueError('Member "%s" already registered' % (name,))
         self.registrations[name] = CtxMemberRegistration(
             name, constructor, destructor)
 
