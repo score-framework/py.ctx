@@ -26,6 +26,7 @@
 # the Licensee has his registered seat, an establishment or assets.
 
 from collections import OrderedDict
+from weakref import WeakKeyDictionary
 
 from transaction import TransactionManager
 from transaction.interfaces import IDataManager
@@ -106,7 +107,7 @@ class ConfiguredCtxModule(ConfiguredModule):
         self.registrations = OrderedDict()
         self._create_callbacks = []
         self._destroy_callbacks = []
-        self._meta_objects = {}
+        self._meta_objects = WeakKeyDictionary()
         self.register('ctx_meta', self.get_meta)
 
     def _finalize(self, score):
@@ -115,11 +116,7 @@ class ConfiguredCtxModule(ConfiguredModule):
         members = {'_conf': self}
         for name, registration in self.registrations.items():
             members[name] = self._create_member(name, registration)
-        self._destroy_callbacks.append(self._delete_meta)
         self.Context = type('ConfiguredContext', (Context,), members)
-
-    def _delete_meta(self, ctx, _exception):
-        self._meta_objects.pop(self, None)
 
     def get_meta(self, ctx, *, autocreate=True):
         if ctx not in self._meta_objects:
