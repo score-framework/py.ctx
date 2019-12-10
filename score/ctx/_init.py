@@ -28,8 +28,6 @@
 from collections import OrderedDict
 from weakref import WeakKeyDictionary
 
-from transaction import TransactionManager
-
 from score.init import ConfiguredModule
 
 
@@ -219,6 +217,7 @@ class Context:
             raise Exception('Unconfigured Context')
         self._conf.log.debug('Initializing')
         if self._conf.tx_member:
+            from transaction import TransactionManager
             setattr(self, self._conf.tx_member, TransactionManager())
         for callback in self._conf._create_callbacks:
             callback(self)

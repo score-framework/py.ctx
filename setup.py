@@ -64,6 +64,5 @@ setup(
     ],
     install_requires=[
         'score.init >= 0.3.7',
-        'transaction >= 1.4',
     ],
 )
