@@ -33,12 +33,26 @@ from transaction import TransactionManager
 from score.init import ConfiguredModule
 
 
+DEFAULTS = {
+    'member.meta': 'meta',
+    'member.tx': 'tx',
+}
+
+
 def init(confdict={}):
     """
     Initializes this module acoording to :ref:`our module initialization
     guidelines <module_initialization>`.
     """
-    return ConfiguredCtxModule()
+    conf = DEFAULTS.copy()
+    conf.update(confdict)
+    meta_member = conf['member.meta']
+    if meta_member and meta_member.strip().lower() == 'none':
+        meta_member = None
+    tx_member = conf['member.meta']
+    if tx_member and tx_member.strip().lower() == 'none':
+        tx_member = None
+    return ConfiguredCtxModule(meta_member, tx_member)
 
 
 class CtxMemberRegistration:
@@ -57,13 +71,16 @@ class ConfiguredCtxModule(ConfiguredModule):
     as well as hooks for context construction and destruction events.
     """
 
-    def __init__(self):
+    def __init__(self, meta_member, tx_member):
         super().__init__('score.ctx')
         self.registrations = OrderedDict()
         self._create_callbacks = []
         self._destroy_callbacks = []
         self._meta_objects = WeakKeyDictionary()
-        self.register('ctx_meta', self.get_meta)
+        self.meta_member = meta_member
+        self.tx_member = tx_member
+        if meta_member:
+            self.register(meta_member, self.get_meta)
 
     def _finalize(self, score):
         self.registrations['score'] = CtxMemberRegistration(
@@ -201,7 +218,8 @@ class Context:
         if not hasattr(self, '_conf'):
             raise Exception('Unconfigured Context')
         self._conf.log.debug('Initializing')
-        self.tx = TransactionManager()
+        if self._conf.tx_member:
+            setattr(self, self._conf.tx_member, TransactionManager())
         for callback in self._conf._create_callbacks:
             callback(self)
 
@@ -234,11 +252,12 @@ class Context:
                                  type(exception).__name__, exception)
         else:
             self._conf.log.debug('Destroying')
-        tx = self.tx.get()
-        if exception or tx.isDoomed():
-            tx.abort()
-        else:
-            tx.commit()
+        if self._conf.tx_member:
+            tx = getattr(self, self._conf.tx_member).get()
+            if exception or tx.isDoomed():
+                tx.abort()
+            else:
+                tx.commit()
         meta.active = False
         for attr in reversed(list(meta.constructed_members.keys())):
             constructor_value = meta.constructed_members.pop(attr)
