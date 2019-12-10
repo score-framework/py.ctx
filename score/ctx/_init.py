@@ -55,9 +55,10 @@ def init(confdict={}):
 
 class CtxMemberRegistration:
 
-    def __init__(self, name, constructor, destructor):
+    def __init__(self, name, constructor, setter, destructor):
         self.name = name
         self.constructor = constructor
+        self.setter = setter
         self.destructor = destructor
 
 
@@ -82,7 +83,7 @@ class ConfiguredCtxModule(ConfiguredModule):
 
     def _finalize(self, score):
         self.registrations['score'] = CtxMemberRegistration(
-            'score', lambda ctx: score, None)
+            'score', lambda ctx: score, None, None)
         members = {'_conf': self}
         for name, registration in self.registrations.items():
             members[name] = self._create_member(name, registration)
@@ -98,7 +99,7 @@ class ConfiguredCtxModule(ConfiguredModule):
             self._meta_objects[ctx] = ContextMetadata(ctx)
         return self._meta_objects[ctx]
 
-    def register(self, name, constructor, destructor=None):
+    def register(self, name, constructor, *, setter=None, destructor=None):
         """
         Registers a new :term:`member <context member>` on Context objects.
         This is the function to use when populating future Context objects. An
@@ -136,7 +137,7 @@ class ConfiguredCtxModule(ConfiguredModule):
         if name in self.registrations:
             raise ValueError('Member "%s" already registered' % (name,))
         self.registrations[name] = CtxMemberRegistration(
-            name, constructor, destructor)
+            name, constructor, setter, destructor)
 
     def on_create(self, callable):
         """
@@ -167,29 +168,35 @@ class ConfiguredCtxModule(ConfiguredModule):
 
         def getter(ctx):
             meta = self.get_meta(ctx)
-            if name in meta.assigned_members[name]:
-                return meta.assigned_members[name]
-            if name in meta.constructed_members:
-                value = meta.constructed_members[name]
-                meta.assigned_members[name] = value
-                return value
-            value = registration.constructor()
-            meta.constructed_members[name] = value
-            meta.assigned_members[name] = value
-            return value
+            if name not in meta.constructed_members:
+                meta.constructed_members[name] = registration.constructor(ctx)
+            return meta.constructed_members[name]
         getter.__name__ = 'get_ctx_' + name
 
-        def setter(ctx, value):
-            meta = self.get_meta(ctx)
-            if name not in meta.constructed_members:
-                initial_value = registration.constructor()
-                meta.constructed_members[name] = initial_value
-            meta.assigned_members[name] = value
-        setter.__name__ = 'set_ctx_' + name
+        setter = None
+        if registration.setter:
+            def setter(ctx, value):
+                meta = self.get_meta(ctx)
+                if name not in meta.constructed_members:
+                    previous_value = getter(ctx)
+                else:
+                    previous_value = meta.constructed_members[name]
+                registration.setter(ctx, previous_value, value)
+                self.log.debug('Setting member %s' % name)
+                meta.constructed_members[name] = value
+            setter.__name__ = 'set_ctx_' + name
 
         def deller(ctx):
             meta = self.get_meta(ctx)
-            meta.assigned_members.pop(name)
+            if not meta.member_constructed(name):
+                return
+            self.log.debug('Deleting member %s' % name)
+            destructor = registration.destructor
+            if destructor:
+                self.log.debug('Calling destructor of %s' % name)
+                constructor_value = meta.constructed_members[name]
+                destructor(ctx, constructor_value, None)
+            meta.constructed_members.pop(name)
         deller.__name__ = 'del_ctx_' + name
 
         return property(getter, setter, deller)
@@ -259,12 +266,7 @@ class Context:
                 tx.commit()
         meta.active = False
         for attr in reversed(list(meta.constructed_members.keys())):
-            constructor_value = meta.constructed_members.pop(attr)
-            self._conf.log.debug('Deleting member %s' % attr)
-            destructor = self._conf.registrations[attr].destructor
-            if destructor:
-                self._conf.log.debug('Calling destructor of %s' % attr)
-                destructor(self, constructor_value, exception)
+            delattr(self, attr)
         for callback in self._conf._destroy_callbacks:
             callback(self, exception)
 
@@ -277,7 +279,6 @@ class ContextMetadata:
         self.ctx = ctx
         self.active = True
         self.constructed_members = {}
-        self.assigned_members = {}
 
     @property
     def registered_members(self):
