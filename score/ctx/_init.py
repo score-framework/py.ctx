@@ -161,6 +161,9 @@ class ConfiguredCtxModule(ConfiguredModule):
           This last value is `None`, if the Context was destroyed without
           exception.
         """
+        if self._finalized:
+            raise Exception(
+                'Cannot register member: configuration already finalized')
         if name == 'destroy' or not name or name[0] == '_':
             raise ValueError('Invalid name "%s"' % name)
         if name in self.registrations:
@@ -174,6 +177,9 @@ class ConfiguredCtxModule(ConfiguredModule):
         :class:`.Context` object is created. The callback will receive the
         newly created Context object as its sole argument.
         """
+        if self._finalized:
+            raise Exception(
+                'Cannot add create listener: configuration already finalized')
         self._create_callbacks.append(callable)
 
     def on_destroy(self, callable):
@@ -185,6 +191,9 @@ class ConfiguredCtxModule(ConfiguredModule):
         - an optional exception, which was thrown before the Context was
           gracefully destroyed.
         """
+        if self._finalized:
+            raise Exception(
+                'Cannot add destroy listener: configuration already finalized')
         self._destroy_callbacks.append(callable)
 
     def _create_member(self, name, registration):
