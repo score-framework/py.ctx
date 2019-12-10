@@ -26,10 +26,12 @@
 # the Licensee has his registered seat, an establishment or assets.
 
 from collections import OrderedDict
-from score.init import ConfiguredModule
+
 from transaction import TransactionManager
 from transaction.interfaces import IDataManager
 from zope.interface import implementer
+
+from score.init import ConfiguredModule
 
 
 def init(confdict={}):
@@ -104,14 +106,30 @@ class ConfiguredCtxModule(ConfiguredModule):
         self.registrations = OrderedDict()
         self._create_callbacks = []
         self._destroy_callbacks = []
+        self._meta_objects = {}
+        self.register('ctx_meta', self.get_meta)
 
     def _finalize(self, score):
         self.registrations['score'] = CtxMemberRegistration(
             'score', lambda ctx: score, None)
         members = {'_conf': self}
         for name, registration in self.registrations.items():
-            members[name] = _create_member(name, registration)
+            members[name] = self._create_member(name, registration)
+        self._destroy_callbacks.append(self._delete_meta)
         self.Context = type('ConfiguredContext', (Context,), members)
+
+    def _delete_meta(self, ctx, _exception):
+        self._meta_objects.pop(self, None)
+
+    def get_meta(self, ctx, *, autocreate=True):
+        if ctx not in self._meta_objects:
+            if not isinstance(ctx, self.Context):
+                raise ValueError('Given Context is not managed by this %s', (
+                    self.__class__.__name__))
+            if not autocreate:
+                return None
+            self._meta_objects[ctx] = ContextMetadata(ctx)
+        return self._meta_objects[ctx]
 
     def register(self, name, constructor, destructor=None):
         """
@@ -167,6 +185,37 @@ class ConfiguredCtxModule(ConfiguredModule):
         """
         self._destroy_callbacks.append(callable)
 
+    def _create_member(self, name, registration):
+
+        def getter(ctx):
+            meta = self.get_meta(ctx)
+            if name in meta.assigned_members[name]:
+                return meta.assigned_members[name]
+            if name in meta.constructed_members:
+                value = meta.constructed_members[name]
+                meta.assigned_members[name] = value
+                return value
+            value = registration.constructor()
+            meta.constructed_members[name] = value
+            meta.assigned_members[name] = value
+            return value
+        getter.__name__ = 'get_ctx_' + name
+
+        def setter(ctx, value):
+            meta = self.get_meta(ctx)
+            if name not in meta.constructed_members:
+                initial_value = registration.constructor()
+                meta.constructed_members[name] = initial_value
+            meta.assigned_members[name] = value
+        setter.__name__ = 'set_ctx_' + name
+
+        def deller(ctx):
+            meta = self.get_meta(ctx)
+            meta.assigned_members.pop(name)
+        deller.__name__ = 'del_ctx_' + name
+
+        return property(getter, setter, deller)
+
 
 class Context:
     """
@@ -188,14 +237,14 @@ class Context:
     def __init__(self):
         if not hasattr(self, '_conf'):
             raise Exception('Unconfigured Context')
-        self._meta = ContextMetadata(self)
         self._conf.log.debug('Initializing')
         self.tx_manager = TransactionManager()
         for callback in self._conf._create_callbacks:
             callback(self)
 
     def __del__(self):
-        if self._meta.active:
+        meta = self._conf.get_meta(self, autocreate=False)
+        if meta and meta.active:
             self.destroy()
 
     def __enter__(self):
@@ -214,7 +263,8 @@ class Context:
         The optional *exception*, that is the cause of this method call, will
         be passed to the destructors of every :term:`context member`.
         """
-        if not self._meta.active:
+        meta = self._conf.get_meta(self, autocreate=False)
+        if not meta or not meta.active:
             return
         if exception:
             self._conf.log.debug('Destroying, %s: %s',
@@ -226,9 +276,9 @@ class Context:
             tx.abort()
         else:
             tx.commit()
-        self._meta.active = False
-        for attr in reversed(list(self._meta.constructed_members.keys())):
-            constructor_value = self._meta.constructed_members.pop(attr)
+        meta.active = False
+        for attr in reversed(list(meta.constructed_members.keys())):
+            constructor_value = meta.constructed_members.pop(attr)
             self._conf.log.debug('Deleting member %s' % attr)
             destructor = self._conf.registrations[attr].destructor
             if destructor:
@@ -259,32 +309,3 @@ class ContextMetadata:
 
     def member_constructed(self, name):
         return name in self.constructed_members
-
-
-def _create_member(name, registration):
-
-    def getter(ctx):
-        if name in ctx._meta.assigned_members[name]:
-            return ctx._meta.assigned_members[name]
-        if name in ctx._meta.constructed_members:
-            value = ctx._meta.constructed_members[name]
-            ctx._meta.assigned_members[name] = value
-            return value
-        value = registration.constructor()
-        ctx._meta.constructed_members[name] = value
-        ctx._meta.assigned_members[name] = value
-        return value
-
-    def setter(ctx, value):
-        if name not in ctx._meta.constructed_members:
-            initial_value = registration.constructor()
-            ctx._meta.constructed_members[name] = initial_value
-        ctx._meta.assigned_members[name] = value
-
-    def deller(ctx):
-        ctx._meta.assigned_members.pop(name)
-
-    getter.__name__ = 'get_ctx_' + name
-    setter.__name__ = 'set_ctx_' + name
-    deller.__name__ = 'del_ctx_' + name
-    return property(getter, setter, deller)
