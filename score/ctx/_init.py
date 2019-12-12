@@ -297,6 +297,7 @@ class ContextMetadata:
 
     def __init__(self, ctx):
         self.ctx = ctx
+        self.conf = ctx._conf
         self.active = True
         self.constructed_members = {}
 
@@ -310,7 +311,7 @@ class ContextMetadata:
     @property
     def registered_members(self):
         if self._registered_members is None:
-            self._registered_members = list(self.registrations.keys())
+            self._registered_members = list(self.conf.registrations.keys())
         return self._registered_members
 
     def member_exists(self, name):
