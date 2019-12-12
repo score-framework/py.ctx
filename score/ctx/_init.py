@@ -47,7 +47,7 @@ def init(confdict={}):
     meta_member = conf['member.meta']
     if meta_member and meta_member.strip().lower() == 'none':
         meta_member = None
-    tx_member = conf['member.meta']
+    tx_member = conf['member.tx']
     if tx_member and tx_member.strip().lower() == 'none':
         tx_member = None
     return ConfiguredCtxModule(meta_member, tx_member)
