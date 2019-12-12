@@ -202,22 +202,7 @@ class ConfiguredCtxModule(ConfiguredModule):
                 meta.constructed_members[name] = value
             setter.__name__ = 'set_ctx_' + name
 
-        def deller(ctx):
-            meta = self.get_meta(ctx)
-            if not meta.active:
-                raise DeadContextException(ctx)
-            if not meta.member_constructed(name):
-                return
-            self.log.debug('Deleting member %s' % name)
-            destructor = registration.destructor
-            if destructor:
-                self.log.debug('Calling destructor of %s' % name)
-                constructor_value = meta.constructed_members[name]
-                destructor(ctx, constructor_value, None)
-            meta.constructed_members.pop(name)
-        deller.__name__ = 'del_ctx_' + name
-
-        return property(getter, setter, deller)
+        return property(getter, setter)
 
 
 class Context:
@@ -284,7 +269,13 @@ class Context:
                 transaction.commit()
         meta.active = False
         for attr in reversed(list(meta.constructed_members.keys())):
-            delattr(self, attr)
+            self._conf.log.debug('Deleting member %s', attr)
+            destructor = self._conf.registrations[attr].destructor
+            if destructor:
+                self._conf.log.debug('Calling destructor of %s', attr)
+                constructor_value = meta.constructed_members[attr]
+                destructor(self, constructor_value, None)
+            meta.constructed_members.pop(attr)
         for callback in self._conf._destroy_callbacks:
             callback(self, exception)
 
