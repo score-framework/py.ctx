@@ -66,7 +66,7 @@ class DeadContextException(Exception):
 
     def __init__(self, ctx):
         self.ctx = ctx
-        super().__init__('Context cannot be user: it was destroyed')
+        super().__init__('Trying to access attribute of a destroyed Context')
 
 
 class ConfiguredCtxModule(ConfiguredModule):
@@ -99,7 +99,7 @@ class ConfiguredCtxModule(ConfiguredModule):
     def get_meta(self, ctx, *, autocreate=True):
         if ctx not in self._meta_objects:
             if not isinstance(ctx, self.Context):
-                raise ValueError('Given Context is not managed by this %s', (
+                raise ValueError('Context is not managed by this %s', (
                     self.__class__.__name__))
             if not autocreate:
                 return None
