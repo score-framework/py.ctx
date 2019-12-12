@@ -26,7 +26,12 @@
 # the Licensee has his registered seat, an establishment or assets.
 
 from collections import OrderedDict
+import enum
 from weakref import WeakKeyDictionary
+
+from transaction import TransactionManager
+from transaction.interfaces import IDataManager, ISynchronizer
+from zope.interface import implementer
 
 from score.init import ConfiguredModule
 
@@ -55,11 +60,19 @@ def init(confdict={}):
 
 class CtxMemberRegistration:
 
-    def __init__(self, name, constructor, setter, destructor):
+    def __init__(self,
+                 name,
+                 constructor,
+                 setter,
+                 destructor,
+                 autojoin,
+                 commit):
         self.name = name
         self.constructor = constructor
         self.setter = setter
         self.destructor = destructor
+        self.autojoin = autojoin
+        self.commit = commit
 
 
 class DeadContextException(Exception):
@@ -92,7 +105,7 @@ class ConfiguredCtxModule(ConfiguredModule):
 
     def _finalize(self, score):
         self.registrations['score'] = CtxMemberRegistration(
-            'score', lambda ctx: score, None, None)
+            'score', lambda ctx: score, None, None, None, None)
         members = {'_conf': self}
         for name, registration in self.registrations.items():
             members[name] = self._create_member(name, registration)
@@ -111,7 +124,14 @@ class ConfiguredCtxModule(ConfiguredModule):
     def get_tx(self, ctx):
         return self.get_meta(ctx).tx
 
-    def register(self, name, constructor, *, setter=None, destructor=None):
+    def register(self,
+                 name,
+                 constructor,
+                 *,
+                 setter=None,
+                 destructor=None,
+                 commit=None,
+                 autojoin=None):
         """
         Registers a new :term:`member <context member>` on Context objects.
         This is the function to use when populating future Context objects. An
@@ -148,8 +168,10 @@ class ConfiguredCtxModule(ConfiguredModule):
             raise ValueError('Invalid name "%s"' % name)
         if name in self.registrations:
             raise ValueError('Member "%s" already registered' % (name,))
+        if not setter and (autojoin or commit):
+            setter = True
         self.registrations[name] = CtxMemberRegistration(
-            name, constructor, setter, destructor)
+            name, constructor, setter, destructor, autojoin, commit)
 
     def on_create(self, callable):
         """
@@ -177,32 +199,46 @@ class ConfiguredCtxModule(ConfiguredModule):
         self._destroy_callbacks.append(callable)
 
     def _create_member(self, name, registration):
+        getter = self._create_member_getter(name, registration)
+        setter = self._create_member_setter(name, registration, getter)
+        return property(getter, setter)
 
+    def _create_member_getter(self, name, registration):
         def getter(ctx):
-            meta = self.get_meta(ctx, autocreate=False)
-            if not meta.active:
+            meta = self.get_meta(ctx)
+            if meta.dead:
                 raise DeadContextException(ctx)
             if name not in meta.constructed_members:
-                meta.constructed_members[name] = registration.constructor(ctx)
-            return meta.constructed_members[name]
-        getter.__name__ = 'get_ctx_' + name
-
-        setter = None
-        if registration.setter:
-            def setter(ctx, value):
-                meta = self.get_meta(ctx)
                 if not meta.active:
                     raise DeadContextException(ctx)
-                if name not in meta.constructed_members:
-                    previous_value = getter(ctx)
-                else:
-                    previous_value = meta.constructed_members[name]
-                registration.setter(ctx, previous_value, value)
-                self.log.debug('Setting member %s' % name)
+                value = registration.constructor(ctx)
+                self.log.debug('Created member %s', name)
                 meta.constructed_members[name] = value
-            setter.__name__ = 'set_ctx_' + name
+                meta.persisted_values[name] = value
+            return meta.constructed_members[name]
+        getter.__name__ = 'get_ctx_' + name
+        return getter
 
-        return property(getter, setter)
+    def _create_member_setter(self, name, registration, getter):
+        if not registration.setter:
+            return None
+
+        def setter(ctx, value):
+            meta = self.get_meta(ctx)
+            if meta.dead:
+                raise DeadContextException(ctx)
+            if name in meta.constructed_members:
+                previous_value = meta.constructed_members[name]
+            elif not meta.active:
+                raise DeadContextException(ctx)
+            else:
+                previous_value = getter(ctx)
+            if callable(registration.setter):
+                registration.setter(ctx, previous_value, value)
+            self.log.debug('Setting member %s', name)
+            meta.constructed_members[name] = value
+        setter.__name__ = 'set_ctx_' + name
+        return setter
 
 
 class Context:
@@ -267,7 +303,7 @@ class Context:
                 transaction.abort()
             else:
                 transaction.commit()
-        meta.active = False
+        meta.state = meta.State.DESTROYING
         for attr in reversed(list(meta.constructed_members.keys())):
             self._conf.log.debug('Deleting member %s', attr)
             destructor = self._conf.registrations[attr].destructor
@@ -278,26 +314,132 @@ class Context:
             meta.constructed_members.pop(attr)
         for callback in self._conf._destroy_callbacks:
             callback(self, exception)
+        if self._conf.tx_member:
+            transaction = self._conf.get_tx(self).get()
+            if exception or transaction.isDoomed():
+                transaction.abort()
+            else:
+                transaction.commit()
+        meta.state = meta.State.DEAD
+
+
+@implementer(IDataManager)
+class AutoCommitter:
+
+    def __init__(self, meta, member_name, commit_callback, sort_key):
+        self.meta = meta
+        self.member_name = member_name
+        self.commit_callback = commit_callback
+        self.sort_key = sort_key
+        self.abort_callback = None
+        self.ctx = meta.ctx
+        self.transaction_manager = meta.tx
+
+    def tpc_finish(self, transaction):
+        pass
+
+    def sortKey(self):
+        # This is an ad-hoc committer, it will probably modify another
+        # IDataManager and should thus sort before anything using its name as
+        # sort string. Ascii reminder:
+        #
+        #   ord('0') < ord('@') < ord('A') < ord('a')
+        #
+        return '@score.ctx.autocommit(%d)' % (self.sort_key,)
+
+    def tpc_abort(self, transaction):
+        if callable(self.abort_callback):
+            self.abort_callback()
+            self.abort_callback = None
+
+    def abort(self, transaction):
+        pass
+
+    def tpc_begin(self, transaction):
+        pass
+
+    def commit(self, transaction):
+        old = self.meta.persisted_values[self.member_name]
+        new = self.meta.constructed_members[self.member_name]
+        self.abort_callback = self.commit_callback(self.ctx, old, new)
+
+    def tpc_vote(self, transaction):
+        pass
+
+
+@implementer(ISynchronizer)
+class TransactionSynchronizer:
+
+    def __init__(self, meta):
+        self.meta = meta
+        self.ctx = meta.ctx
+        self.conf = meta.conf
+
+    def newTransaction(self, transaction):
+        pass
+
+    def beforeCompletion(self, transaction):
+        sort_key = len(self.meta.constructed_members)
+        for name, current_value in self.meta.constructed_members.items():
+            registration = self.conf.registrations[name]
+            if not registration.autojoin and not registration.commit:
+                continue
+            persisted_value = self.meta.persisted_values[name]
+            # if persisted_value == current_value:
+            #     continue
+            if registration.autojoin:
+                transaction.join(registration.autojoin(
+                    self.ctx, persisted_value, current_value))
+            if registration.commit:
+                sort_key -= 1
+                transaction.join(AutoCommitter(
+                    self.meta, name, registration.commit, sort_key))
+
+    def afterCompletion(self, transaction):
+        pass
 
 
 class ContextMetadata:
 
     _tx = None
 
+    _tx_synchronizer = None
+
     _registered_members = None
+
+    @enum.unique
+    class State(enum.IntEnum):
+        DEAD = 0
+        ACTIVE = 1
+        DESTROYING = 2
 
     def __init__(self, ctx):
         self.ctx = ctx
         self.conf = ctx._conf
-        self.active = True
-        self.constructed_members = {}
+        self.state = self.State.ACTIVE
+        self.destoying = False
+        self.constructed_members = OrderedDict()
+        self.persisted_values = {}
 
     @property
     def tx(self):
         if self._tx is None:
-            from transaction import TransactionManager
             self._tx = TransactionManager()
+            self._tx_synchronizer = TransactionSynchronizer(self)
+            self._tx.registerSynch(self._tx_synchronizer)
         return self._tx
+
+    @property
+    def active(self):
+        return self.state == self.State.ACTIVE
+
+    @property
+    def destroying(self):
+        return self.state == self.State.DESTROYING
+
+    @property
+    def dead(self):
+        return self.state == self.State.DEAD
 
     @property
     def registered_members(self):
