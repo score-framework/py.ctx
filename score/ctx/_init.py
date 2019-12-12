@@ -87,6 +87,8 @@ class ConfiguredCtxModule(ConfiguredModule):
         self.tx_member = tx_member
         if meta_member:
             self.register(meta_member, self.get_meta)
+        if tx_member:
+            self.register(tx_member, self.get_tx)
 
     def _finalize(self, score):
         self.registrations['score'] = CtxMemberRegistration(
@@ -105,6 +107,9 @@ class ConfiguredCtxModule(ConfiguredModule):
                 return None
             self._meta_objects[ctx] = ContextMetadata(ctx)
         return self._meta_objects[ctx]
+
+    def get_tx(self, ctx):
+        return self.get_meta(ctx).tx
 
     def register(self, name, constructor, *, setter=None, destructor=None):
         """
@@ -236,9 +241,6 @@ class Context:
         if not hasattr(self, '_conf'):
             raise Exception('Unconfigured Context')
         self._conf.log.debug('Initializing')
-        if self._conf.tx_member:
-            from transaction import TransactionManager
-            setattr(self, self._conf.tx_member, TransactionManager())
         for callback in self._conf._create_callbacks:
             callback(self)
 
@@ -275,11 +277,11 @@ class Context:
         else:
             self._conf.log.debug('Destroying')
         if self._conf.tx_member:
-            tx = getattr(self, self._conf.tx_member).get()
-            if exception or tx.isDoomed():
-                tx.abort()
+            transaction = self._conf.get_tx(self).get()
+            if exception or transaction.isDoomed():
+                transaction.abort()
             else:
-                tx.commit()
+                transaction.commit()
         meta.active = False
         for attr in reversed(list(meta.constructed_members.keys())):
             delattr(self, attr)
@@ -289,12 +291,21 @@ class Context:
 
 class ContextMetadata:
 
+    _tx = None
+
     _registered_members = None
 
     def __init__(self, ctx):
         self.ctx = ctx
         self.active = True
         self.constructed_members = {}
+
+    @property
+    def tx(self):
+        if self._tx is None:
+            from transaction import TransactionManager
+            self._tx = TransactionManager()
+        return self._tx
 
     @property
     def registered_members(self):
