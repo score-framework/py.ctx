@@ -1,4 +1,4 @@
-# Copyright © 2019 Necdet Can Ateşman, Vienna, Austria
+# Copyright © 2019-2020 Necdet Can Ateşman, Vienna, Austria
 #
 # This file is part of the The SCORE Framework.
 #
