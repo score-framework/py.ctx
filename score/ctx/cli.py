@@ -26,13 +26,14 @@
 
 import functools
 
-from score.cli import init_score
-
 
 def init_cli_ctx(command):
     """
     Decorator for click commands that provides a Context object.
     """
+
+    from score.cli import init_score
+
     @functools.wraps(command)
     @init_score
     def wrapped(score, *args, **kwargs):
